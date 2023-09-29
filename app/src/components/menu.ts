@@ -8,9 +8,9 @@ import {
   MenuItem,
   MenuItemConstructorOptions,
 } from 'electron';
-import * as log from 'loglevel';
 
-import { isOSX, openExternal } from '../helpers/helpers';
+import { cleanupPlainText, isOSX, openExternal } from '../helpers/helpers';
+import * as log from '../helpers/loggingHelper';
 import {
   clearAppData,
   getCurrentURL,
@@ -45,7 +45,7 @@ export function createMenu(
   options: OutputOptions,
   mainWindow: BrowserWindow,
 ): void {
-  log.debug('createMenu', { options, mainWindow });
+  log.debug('createMenu', { options });
   const menuTemplate = generateMenu(options, mainWindow);
 
   injectBookmarks(menuTemplate);
@@ -95,6 +95,15 @@ export function generateMenu(
         role: 'copy',
       },
       {
+        label: 'Copy as Plain Text',
+        accelerator: 'CmdOrCtrl+Shift+C',
+        click: (): void => {
+          // We use clipboard.readText to strip down formatting
+          const text = clipboard.readText('selection');
+          clipboard.writeText(cleanupPlainText(text), 'clipboard');
+        },
+      },
+      {
         label: 'Copy Current URL',
         accelerator: 'CmdOrCtrl+L',
         click: (): void => clipboard.writeText(getCurrentURL()),
@@ -106,7 +115,10 @@ export function generateMenu(
       },
       {
         label: 'Paste and Match Style',
-        accelerator: 'CmdOrCtrl+Shift+V',
+        // https://github.com/nativefier/nativefier/issues/404
+        // Apple's HIG lists this shortcut for paste and match style
+        // https://support.apple.com/en-us/HT209651
+        accelerator: isOSX() ? 'Option+Shift+Cmd+V' : 'Ctrl+Shift+V',
         role: 'pasteAndMatchStyle',
       },
       {
@@ -141,7 +153,7 @@ export function generateMenu(
     submenu: [
       {
         label: 'Back',
-        accelerator: isOSX() ? 'CmdOrAlt+Left' : 'Alt+Left',
+        accelerator: isOSX() ? 'Cmd+Left' : 'Alt+Left',
         click: goBack,
       },
       {

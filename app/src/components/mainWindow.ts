@@ -1,16 +1,25 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ipcMain, BrowserWindow, Event } from 'electron';
+import {
+  desktopCapturer,
+  ipcMain,
+  BrowserWindow,
+  Event,
+  HandlerDetails,
+} from 'electron';
 import windowStateKeeper from 'electron-window-state';
-import log from 'loglevel';
 
+import { initContextMenu } from './contextMenu';
+import { createMenu } from './menu';
 import {
   getAppIcon,
   getCounterValue,
   isOSX,
   nativeTabsSupported,
 } from '../helpers/helpers';
+import * as log from '../helpers/loggingHelper';
+import { IS_PLAYWRIGHT } from '../helpers/playwrightHelpers';
 import { onNewWindow, setupNativefierWindow } from '../helpers/windowEvents';
 import {
   clearCache,
@@ -18,8 +27,6 @@ import {
   getDefaultWindowOptions,
   hideWindow,
 } from '../helpers/windowHelpers';
-import { initContextMenu } from './contextMenu';
-import { createMenu } from './menu';
 import {
   OutputOptions,
   outputOptionsToWindowOptions,
@@ -35,9 +42,9 @@ type SessionInteractionRequest = {
   propertyValue?: unknown;
 };
 
-type SessionInteractionResult = {
+type SessionInteractionResult<T = unknown> = {
   id?: string;
-  value?: unknown | Promise<unknown>;
+  value?: T | Promise<T>;
   error?: Error;
 };
 
@@ -72,10 +79,20 @@ export async function createMainWindow(
     // Whether the window should always stay on top of other windows. Default is false.
     alwaysOnTop: options.alwaysOnTop,
     titleBarStyle: options.titleBarStyle ?? 'default',
-    show: options.tray !== 'start-in-tray',
+    // Maximize window visual glitch on Windows fix
+    // We want a consistent behavior on all OSes, but Windows needs help to not glitch.
+    // So, we manually mainWindow.show() later, see a few lines below
+    show: options.tray !== 'start-in-tray' && process.platform !== 'win32',
     backgroundColor: options.backgroundColor,
-    ...getDefaultWindowOptions(outputOptionsToWindowOptions(options)),
+    ...getDefaultWindowOptions(
+      outputOptionsToWindowOptions(options, nativeTabsSupported()),
+    ),
   });
+
+  // Just load about:blank to start, gives playwright something to latch onto initially for testing.
+  if (IS_PLAYWRIGHT) {
+    await mainWindow.loadURL('about:blank');
+  }
 
   mainWindowState.manage(mainWindow);
 
@@ -88,46 +105,37 @@ export async function createMainWindow(
 
   if (options.tray === 'start-in-tray') {
     mainWindow.hide();
+  } else if (process.platform === 'win32') {
+    // See other "Maximize window visual glitch on Windows fix" comment above.
+    mainWindow.show();
   }
 
-  const windowOptions = outputOptionsToWindowOptions(options);
+  const windowOptions = outputOptionsToWindowOptions(
+    options,
+    nativeTabsSupported(),
+  );
   createMenu(options, mainWindow);
   createContextMenu(options, mainWindow);
   setupNativefierWindow(windowOptions, mainWindow);
 
-  // .on('new-window', ...) is deprected in favor of setWindowOpenHandler(...)
-  // We can't quite cut over to that yet for a few reasons:
-  // 1. Our version of Electron does not yet support a parameter to
-  //    setWindowOpenHandler that contains `disposition', which we need.
-  //    See https://github.com/electron/electron/issues/28380
-  // 2. setWindowOpenHandler doesn't support newGuest as well
-  // Though at this point, 'new-window' bugs seem to be coming up and downstream
-  // users are being pointed to use setWindowOpenHandler.
-  // E.g., https://github.com/electron/electron/issues/28374
-
   // Note it is important to add these handlers only to the *main* window,
   // else we run into weird behavior like opening tabs twice
-  mainWindow.webContents.on(
-    'new-window',
-    (event, url, frameName, disposition) => {
-      onNewWindow(
-        windowOptions,
-        setupNativefierWindow,
-        event,
-        url,
-        frameName,
-        disposition,
-      ).catch((err) => log.error('onNewWindow ERROR', err));
-    },
-  );
-  // @ts-expect-error new-tab isn't in the type definition, but it does exist
-  mainWindow.on('new-tab', () => {
+  mainWindow.webContents.setWindowOpenHandler((details: HandlerDetails) => {
+    return onNewWindow(
+      windowOptions,
+      setupNativefierWindow,
+      details,
+      mainWindow,
+    );
+  });
+  mainWindow.on('new-window-for-tab', (event?: Event<{ url?: string }>) => {
+    log.debug('mainWindow.new-window-for-tab', { event });
     createNewTab(
       windowOptions,
       setupNativefierWindow,
-      options.targetUrl,
+      event?.url ?? options.targetUrl,
       true,
-      mainWindow,
+      // mainWindow,
     );
   });
 
@@ -142,14 +150,11 @@ export async function createMainWindow(
     mainWindow.show();
   });
 
-  setupSessionInteraction(options, mainWindow);
+  setupSessionInteraction(mainWindow);
+  setupSessionPermissionHandler(mainWindow);
 
   if (options.clearCache) {
     await clearCache(mainWindow);
-  }
-
-  if (options.targetUrl) {
-    await mainWindow.loadURL(options.targetUrl);
   }
 
   setupCloseEvent(options, mainWindow);
@@ -222,6 +227,22 @@ function setupCounter(
   });
 }
 
+function setupSessionPermissionHandler(window: BrowserWindow): void {
+  window.webContents.session.setPermissionCheckHandler(() => {
+    return true;
+  });
+  window.webContents.session.setPermissionRequestHandler(
+    (_webContents, _permission, callback) => {
+      callback(true);
+    },
+  );
+  ipcMain.handle('desktop-capturer-get-sources', () => {
+    return desktopCapturer.getSources({
+      types: ['screen', 'window'],
+    });
+  });
+}
+
 function setupNotificationBadge(
   options: OutputOptions,
   window: BrowserWindow,
@@ -240,10 +261,7 @@ function setupNotificationBadge(
   });
 }
 
-function setupSessionInteraction(
-  options: OutputOptions,
-  window: BrowserWindow,
-): void {
+function setupSessionInteraction(window: BrowserWindow): void {
   // See API.md / "Accessing The Electron Session"
   ipcMain.on(
     'session-interaction',

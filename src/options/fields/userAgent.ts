@@ -71,9 +71,8 @@ async function edgeUserAgent(
   platform: string,
   electronVersion: string,
 ): Promise<string> {
-  const chromeVersion = await getChromeVersionForElectronVersion(
-    electronVersion,
-  );
+  const chromeVersion =
+    await getChromeVersionForElectronVersion(electronVersion);
 
   return `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36 Edg/${chromeVersion}`;
 }
@@ -81,7 +80,10 @@ async function edgeUserAgent(
 async function firefoxUserAgent(platform: string): Promise<string> {
   const firefoxVersion = await getLatestFirefoxVersion();
 
-  return `Mozilla/5.0 (${platform}; rv:${firefoxVersion}) Gecko/20100101 Firefox/${firefoxVersion}`;
+  return `Mozilla/5.0 (${platform}; rv:${firefoxVersion}) Gecko/20100101 Firefox/${firefoxVersion}`.replace(
+    '10_15_7',
+    '10.15',
+  );
 }
 
 async function safariUserAgent(platform: string): Promise<string> {

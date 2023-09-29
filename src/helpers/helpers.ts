@@ -27,6 +27,17 @@ export function hasWine(): boolean {
   return hasbin.sync('wine');
 }
 
+// I tried to place this (and the other is* functions) in
+// a new shared helpers, but alas eslint gets real confused
+// about the type signatures and thinks they're all any.
+// TODO: Figure out a way to refactor duplicate code from
+// src/helpers/helpers.ts and app/src/helpers/helpers.ts
+// into the shared module
+
+export function isLinux(): boolean {
+  return os.platform() === 'linux';
+}
+
 export function isOSX(): boolean {
   return os.platform() === 'darwin';
 }
@@ -183,4 +194,18 @@ export function checkInternet(): void {
       );
     }
   });
+}
+
+/**
+ * Takes in a snake-cased string and converts to camelCase
+ */
+export function camelCased(str: string): string {
+  return str
+    .split('-')
+    .filter((s) => s.length > 0)
+    .map((word, i) => {
+      if (i === 0) return word;
+      return `${word[0].toUpperCase()}${word.substring(1)}`;
+    })
+    .join('');
 }

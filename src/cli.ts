@@ -7,6 +7,7 @@ import yargs from 'yargs';
 
 import { DEFAULT_ELECTRON_VERSION } from './constants';
 import {
+  camelCased,
   checkInternet,
   getProcessEnvs,
   isArgFormatInvalid,
@@ -15,6 +16,19 @@ import { supportedArchs, supportedPlatforms } from './infer/inferOs';
 import { buildNativefierApp } from './main';
 import { RawOptions } from '../shared/src/options/model';
 import { parseJson } from './utils/parseUtils';
+
+// @types/yargs@17.x started pretending yargs.argv can be a promise:
+// https://github.com/DefinitelyTyped/DefinitelyTyped/blob/8e17f9ca957a06040badb53ae7688fbb74229ccf/types/yargs/index.d.ts#L73
+// Dunno in which case it happens, but it doesn't for us! So, having to await
+// (and end up having to flag sync code as async) would be useless and annoying.
+// So, copy-pastaing and axing the Promise half of yargs's type definition,
+// to have a *non*-promise type. Maybe that's wrong. If it is, this type should
+// be dropped, and extra async-ness should be added where needed.
+type YargsArgvSync<T> = {
+  [key in keyof yargs.Arguments<T> as
+    | key
+    | yargs.CamelCaseKey<key>]: yargs.Arguments<T>[key];
+};
 
 export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
   const sanitizedArgs = sanitizeArgs(argv);
@@ -45,7 +59,8 @@ export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
       type: 'string',
     })
     .positional('outputDirectory', {
-      defaultDescription: 'current directory',
+      defaultDescription:
+        'defaults to the current directory, or env. var. NATIVEFIER_APPS_DIR if set',
       description: 'the directory to generate the app in',
       normalize: true,
       type: 'string',
@@ -345,9 +360,13 @@ export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
     })
     .option('internal-urls', {
       defaultDescription: 'URLs sharing the same base domain',
-      description:
-        'regex of URLs to consider "internal"; all other URLs will be opened in an external browser',
+      description: `regex of URLs to consider "internal"; by default matches based on domain (see '--strict-internal-urls'); all other URLs will be opened in an external browser`,
       type: 'string',
+    })
+    .option('strict-internal-urls', {
+      default: false,
+      description: 'disable domain-based matching on internal URLs',
+      type: 'boolean',
     })
     .option('proxy-rules', {
       description:
@@ -355,7 +374,12 @@ export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
       type: 'string',
     })
     .group(
-      ['block-external-urls', 'internal-urls', 'proxy-rules'],
+      [
+        'block-external-urls',
+        'internal-urls',
+        'strict-internal-urls',
+        'proxy-rules',
+      ],
       decorateYargOptionGroup('URL Handling Options'),
     )
     // Auth Options
@@ -506,8 +530,13 @@ export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
       description: 'enable verbose/debug/troubleshooting logs',
       type: 'boolean',
     })
+    .option('quiet', {
+      default: false,
+      description: 'suppress all logging',
+      type: 'boolean',
+    })
     .group(
-      ['crash-reporter', 'verbose'],
+      ['crash-reporter', 'verbose', 'quiet'],
       decorateYargOptionGroup('Debug Options'),
     )
     .version()
@@ -517,7 +546,7 @@ export function initArgs(argv: string[]): yargs.Argv<RawOptions> {
 
   // We must access argv in order to get yargs to actually process args
   // Do this now to go ahead and get any errors out of the way
-  args.argv;
+  args.argv as YargsArgvSync<RawOptions>;
 
   return args as yargs.Argv<RawOptions>;
 }
@@ -527,7 +556,7 @@ function decorateYargOptionGroup(value: string): string {
 }
 
 export function parseArgs(args: yargs.Argv<RawOptions>): RawOptions {
-  const parsed = { ...args.argv };
+  const parsed = { ...(args.argv as YargsArgvSync<RawOptions>) };
   // In yargs, the _ property of the parsed args is an array of the positional args
   // https://github.com/yargs/yargs/blob/master/docs/examples.md#and-non-hyphenated-options-too-just-use-argv_
   // So try to extract the targetUrl and outputDirectory from these
@@ -576,6 +605,10 @@ export function parseArgs(args: yargs.Argv<RawOptions>): RawOptions {
   ]) {
     if (parsed[arg] && typeof parsed[arg] === 'string') {
       parsed[arg] = parseJson(parsed[arg] as string);
+      // sets fileDownloadOptions and browserWindowOptions
+      // as parsed object as they were still strings in `nativefier.json`
+      // because only their snake-cased variants were being parsed above
+      parsed[camelCased(arg)] = parsed[arg];
     }
   }
   if (parsed['process-envs'] && typeof parsed['process-envs'] === 'string') {
@@ -654,11 +687,17 @@ if (require.main === module) {
       'Running in verbose mode! This will produce a mountain of logs and',
       'is recommended only for troubleshooting or if you like Shakespeare.',
     );
+  } else if (options.quiet) {
+    log.setLevel('silent');
   } else {
     log.setLevel('info');
   }
 
   checkInternet();
+
+  if (!options.out && process.env.NATIVEFIER_APPS_DIR) {
+    options.out = process.env.NATIVEFIER_APPS_DIR;
+  }
 
   buildNativefierApp(options).catch((error) => {
     log.error('Error during build. Run with --verbose for details.', error);

@@ -1,4 +1,4 @@
-import { dialog, BrowserWindow, WebContents } from 'electron';
+import { dialog, BrowserWindow } from 'electron';
 jest.mock('loglevel');
 import { error } from 'loglevel';
 import { WindowOptions } from '../../../shared/src/options/model';
@@ -52,14 +52,15 @@ describe('clearAppData', () => {
 });
 
 describe('createNewTab', () => {
-  const window = new BrowserWindow();
+  // const window = new BrowserWindow();
   const options: WindowOptions = {
+    autoHideMenuBar: true,
     blockExternalUrls: false,
     insecure: false,
     name: 'Test App',
     targetUrl: 'https://github.com/nativefier/natifefier',
     zoom: 1.0,
-  };
+  } as WindowOptions;
   const setupWindow = jest.fn();
   const url = 'https://github.com/nativefier/nativefier';
   const mockAddTabbedWindow: jest.SpyInstance = jest.spyOn(
@@ -78,7 +79,7 @@ describe('createNewTab', () => {
   test('creates new foreground tab', () => {
     const foreground = true;
 
-    const tab = createNewTab(options, setupWindow, url, foreground, window);
+    const tab = createNewTab(options, setupWindow, url, foreground);
 
     expect(mockAddTabbedWindow).toHaveBeenCalledWith(tab);
     expect(setupWindow).toHaveBeenCalledWith(options, tab);
@@ -89,7 +90,13 @@ describe('createNewTab', () => {
   test('creates new background tab', () => {
     const foreground = false;
 
-    const tab = createNewTab(options, setupWindow, url, foreground, window);
+    const tab = createNewTab(
+      options,
+      setupWindow,
+      url,
+      foreground,
+      // window
+    );
 
     expect(mockAddTabbedWindow).toHaveBeenCalledWith(tab);
     expect(setupWindow).toHaveBeenCalledWith(options, tab);
@@ -102,35 +109,30 @@ describe('injectCSS', () => {
   jest.setTimeout(10000);
 
   const mockGetCSSToInject: jest.SpyInstance = getCSSToInject as jest.Mock;
-  let mockGetURL: jest.SpyInstance;
   const mockLogError: jest.SpyInstance = error as jest.Mock;
-  const mockWebContentsInsertCSS: jest.SpyInstance = jest.spyOn(
-    WebContents.prototype,
-    'insertCSS',
-  );
 
   const css = 'body { color: white; }';
   let responseHeaders: Record<string, string[]>;
 
   beforeEach(() => {
     mockGetCSSToInject.mockReset().mockReturnValue('');
-    mockGetURL = jest
-      .spyOn(WebContents.prototype, 'getURL')
-      .mockReturnValue('https://example.com');
     mockLogError.mockReset();
-    mockWebContentsInsertCSS.mockReset().mockResolvedValue(undefined);
     responseHeaders = { 'x-header': ['value'], 'content-type': ['test/other'] };
   });
 
   afterAll(() => {
     mockGetCSSToInject.mockRestore();
-    mockGetURL.mockRestore();
     mockLogError.mockRestore();
-    mockWebContentsInsertCSS.mockRestore();
   });
 
   test('will not inject if getCSSToInject is empty', () => {
     const window = new BrowserWindow();
+    const mockWebContentsInsertCSS: jest.SpyInstance = jest
+      .spyOn(window.webContents, 'insertCSS')
+      .mockResolvedValue('');
+    jest
+      .spyOn(window.webContents, 'getURL')
+      .mockReturnValue('https://example.com');
 
     injectCSS(window);
 
@@ -141,6 +143,12 @@ describe('injectCSS', () => {
   test('will inject on did-navigate + onResponseStarted', () => {
     mockGetCSSToInject.mockReturnValue(css);
     const window = new BrowserWindow();
+    const mockWebContentsInsertCSS: jest.SpyInstance = jest
+      .spyOn(window.webContents, 'insertCSS')
+      .mockResolvedValue('');
+    jest
+      .spyOn(window.webContents, 'getURL')
+      .mockReturnValue('https://example.com');
 
     injectCSS(window);
 
@@ -162,6 +170,12 @@ describe('injectCSS', () => {
     (contentType: string) => {
       mockGetCSSToInject.mockReturnValue(css);
       const window = new BrowserWindow();
+      const mockWebContentsInsertCSS: jest.SpyInstance = jest
+        .spyOn(window.webContents, 'insertCSS')
+        .mockResolvedValue('');
+      jest
+        .spyOn(window.webContents, 'getURL')
+        .mockReturnValue('https://example.com');
 
       responseHeaders['content-type'] = [contentType];
 
@@ -188,6 +202,12 @@ describe('injectCSS', () => {
     (contentType: string) => {
       mockGetCSSToInject.mockReturnValue(css);
       const window = new BrowserWindow();
+      const mockWebContentsInsertCSS: jest.SpyInstance = jest
+        .spyOn(window.webContents, 'insertCSS')
+        .mockResolvedValue('');
+      jest
+        .spyOn(window.webContents, 'getURL')
+        .mockReturnValue('https://example.com');
 
       responseHeaders['content-type'] = [contentType];
 
@@ -214,6 +234,12 @@ describe('injectCSS', () => {
     (resourceType: string) => {
       mockGetCSSToInject.mockReturnValue(css);
       const window = new BrowserWindow();
+      const mockWebContentsInsertCSS: jest.SpyInstance = jest
+        .spyOn(window.webContents, 'insertCSS')
+        .mockResolvedValue('');
+      jest
+        .spyOn(window.webContents, 'getURL')
+        .mockReturnValue('https://example.com');
 
       injectCSS(window);
 
@@ -239,6 +265,12 @@ describe('injectCSS', () => {
     (resourceType: string) => {
       mockGetCSSToInject.mockReturnValue(css);
       const window = new BrowserWindow();
+      const mockWebContentsInsertCSS: jest.SpyInstance = jest
+        .spyOn(window.webContents, 'insertCSS')
+        .mockResolvedValue('');
+      jest
+        .spyOn(window.webContents, 'getURL')
+        .mockReturnValue('https://example.com');
 
       injectCSS(window);
 

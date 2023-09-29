@@ -2,20 +2,23 @@ import * as path from 'path';
 
 export const DEFAULT_APP_NAME = 'APP';
 
-// Update both DEFAULT_ELECTRON_VERSION and DEFAULT_CHROME_VERSION together,
-// and update app / package.json / devDeps / electron to value of DEFAULT_ELECTRON_VERSION
-export const DEFAULT_ELECTRON_VERSION = '13.6.3';
+// Upgrade both DEFAULT_ELECTRON_VERSION and DEFAULT_CHROME_VERSION together, and
+//   - upgrade app / package.json / "devDependencies" / "electron"
+//   - upgrade       package.json / "devDependencies" / "electron"
+// Doing a *major* upgrade? Read https://github.com/nativefier/nativefier/blob/master/HACKING.md#deps-major-upgrading-electron
+export const DEFAULT_ELECTRON_VERSION = '25.7.0';
 // https://atom.io/download/atom-shell/index.json
-export const DEFAULT_CHROME_VERSION = '91.0.4472.164';
+// https://www.electronjs.org/releases/stable
+export const DEFAULT_CHROME_VERSION = '114.0.5735.289';
 
 // Update each of these periodically
 // https://product-details.mozilla.org/1.0/firefox_versions.json
-export const DEFAULT_FIREFOX_VERSION = '94.0.2';
+export const DEFAULT_FIREFOX_VERSION = '116.0.3';
 
 // https://en.wikipedia.org/wiki/Safari_version_history
 export const DEFAULT_SAFARI_VERSION = {
-  majorVersion: 15,
-  version: '15.0',
+  majorVersion: 16,
+  version: '16.6',
   webkitVersion: '605.1.15',
 };
 

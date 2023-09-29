@@ -46,6 +46,7 @@ describe('fields', () => {
         proxyRules: undefined,
         showMenuBar: false,
         singleInstance: false,
+        strictInternalUrls: false,
         titleBarStyle: undefined,
         tray: 'false',
         userAgent: undefined,
@@ -59,6 +60,7 @@ describe('fields', () => {
         zoom: 1,
       },
       packager: {
+        arch: process.arch,
         dir: '',
         platform: process.platform,
         portable: false,

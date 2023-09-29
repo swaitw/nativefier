@@ -1,4 +1,5 @@
-import { CreateOptions } from 'asar';
+import { CreateOptions } from '@electron/asar';
+import { randomUUID } from 'crypto';
 import * as electronPackager from 'electron-packager';
 
 export type TitleBarValue =
@@ -9,6 +10,7 @@ export type TitleBarValue =
 export type TrayValue = 'true' | 'false' | 'start-in-tray';
 
 export interface ElectronPackagerOptions extends electronPackager.Options {
+  arch: string;
   portable: boolean;
   platform?: string;
   targetUrl: string;
@@ -54,8 +56,10 @@ export interface AppOptions {
     nativefierVersion: string;
     processEnvs?: string;
     proxyRules?: string;
+    quiet?: boolean;
     showMenuBar: boolean;
     singleInstance: boolean;
+    strictInternalUrls: boolean;
     titleBarStyle?: TitleBarValue;
     tray: TrayValue;
     userAgent?: string;
@@ -113,6 +117,8 @@ export type OutputOptions = NativefierOptions & {
   name: string;
   nativefierVersion: string;
   oldBuildWarningText: string;
+  strictInternalUrls: boolean;
+  tabbingIdentifier?: string;
   targetUrl: string;
   userAgent?: string;
   zoom?: number;
@@ -127,7 +133,7 @@ export type RawOptions = {
   alwaysOnTop?: boolean;
   appCopyright?: string;
   appVersion?: string;
-  arch?: string | string[];
+  arch?: string;
   asar?: boolean | CreateOptions;
   backgroundColor?: string;
   basicAuthPassword?: string;
@@ -179,8 +185,10 @@ export type RawOptions = {
   portable?: boolean;
   processEnvs?: string;
   proxyRules?: string;
+  quiet?: boolean;
   showMenuBar?: boolean;
   singleInstance?: boolean;
+  strictInternalUrls?: boolean;
   targetUrl?: string;
   titleBarStyle?: TitleBarValue;
   tray?: TrayValue;
@@ -199,13 +207,16 @@ export type RawOptions = {
 };
 
 export type WindowOptions = {
+  autoHideMenuBar: boolean;
   blockExternalUrls: boolean;
   browserwindowOptions?: BrowserWindowOptions;
   insecure: boolean;
   internalUrls?: string | RegExp;
+  strictInternalUrls?: boolean;
   name: string;
   proxyRules?: string;
   show?: boolean;
+  tabbingIdentifier?: string;
   targetUrl: string;
   userAgent?: string;
   zoom: number;
@@ -213,10 +224,15 @@ export type WindowOptions = {
 
 export function outputOptionsToWindowOptions(
   options: OutputOptions,
+  generateTabbingIdentifierIfMissing: boolean,
 ): WindowOptions {
   return {
     ...options,
+    autoHideMenuBar: !options.showMenuBar,
     insecure: options.insecure ?? false,
+    tabbingIdentifier: generateTabbingIdentifierIfMissing
+      ? options.tabbingIdentifier ?? randomUUID()
+      : options.tabbingIdentifier,
     zoom: options.zoom ?? 1.0,
   };
 }
